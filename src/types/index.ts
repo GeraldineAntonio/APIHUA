@@ -43,3 +43,15 @@ export interface ContenidoCapitulo {
   url: string;
   fuente: string;
 }
+
+export interface FlareSolverrResponse {
+  status: string;
+  message: string;
+  solution: {
+    url: string;
+    status: number;
+    response: string;
+    cookies: any[];
+    userAgent: string;
+  };
+}

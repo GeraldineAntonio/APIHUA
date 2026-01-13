@@ -4,6 +4,7 @@ import { Request, Response } from 'express';
 import { scraperService } from '../services/scraper.service.js';
 import { cacheService } from '../services/cache.service.js';
 import { ApiResponse, Capitulo, CapituloUnificado, Idioma } from '../types/index.js';
+import { logger } from '../utils/logger.js';
 
 export class CapitulosController {
   async getCapitulos(req: Request, res: Response): Promise<void> {
@@ -20,7 +21,7 @@ export class CapitulosController {
     try {
       const cachedData = cacheService.get(idioma);
       if (cachedData) {
-        console.log(`📦 Usando cache para ${idioma}`);
+        logger.info(`📦 Usando cache para ${idioma}`);
         res.json({
           success: true,
           data: cachedData,
@@ -29,7 +30,7 @@ export class CapitulosController {
         return;
       }
 
-      console.log(`🔍 Scraping ${idioma}...`);
+      logger.info(`🔍 Scraping ${idioma}...`);
 
       if (idioma === 'es') {
         const capitulos = await scraperService.scrapeBlogspot();
@@ -41,8 +42,29 @@ export class CapitulosController {
           total: capitulos.length
         } as ApiResponse<Capitulo[]>);
       } else {
-        const capitulosMaehwa = await scraperService.scrapeMaehwasup();
-        const capitulosUnificados = scraperService.unificarCapitulosIngles(capitulosMaehwa);
+        // Scraping paralelo de ambas fuentes
+        const [capitulosMaehwa, capitulosSkydemon] = await Promise.allSettled([
+          scraperService.scrapeMaehwasup(),
+          scraperService.scrapeSkydemon()
+        ]);
+
+        const todosCapitulos: Capitulo[] = [];
+
+        if (capitulosMaehwa.status === 'fulfilled') {
+          todosCapitulos.push(...capitulosMaehwa.value);
+          logger.success(`Maehwasup: ${capitulosMaehwa.value.length} capítulos`);
+        } else {
+          logger.error('Error en Maehwasup:', capitulosMaehwa.reason);
+        }
+
+        if (capitulosSkydemon.status === 'fulfilled') {
+          todosCapitulos.push(...capitulosSkydemon.value);
+          logger.success(`Skydemon: ${capitulosSkydemon.value.length} capítulos`);
+        } else {
+          logger.error('Error en Skydemon:', capitulosSkydemon.reason);
+        }
+
+        const capitulosUnificados = scraperService.unificarCapitulosIngles(todosCapitulos);
         cacheService.set('en', capitulosUnificados);
 
         res.json({
@@ -52,7 +74,7 @@ export class CapitulosController {
         } as ApiResponse<CapituloUnificado[]>);
       }
     } catch (error) {
-      console.error('❌ Error:', error);
+      logger.error('Error en getCapitulos:', error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Error desconocido'
@@ -82,7 +104,7 @@ export class CapitulosController {
         data: contenido
       } as ApiResponse<typeof contenido>);
     } catch (error) {
-      console.error('❌ Error al obtener contenido:', error);
+      logger.error('Error al obtener contenido:', error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Error desconocido'
@@ -100,7 +122,7 @@ export class CapitulosController {
 
   getHealth(req: Request, res: Response): void {
     const cacheStatus = cacheService.getStatus();
-    
+
     res.json({
       success: true,
       data: {

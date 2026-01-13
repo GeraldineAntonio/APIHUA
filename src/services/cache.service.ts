@@ -10,9 +10,6 @@ class CacheService {
     lastUpdate: {}
   };
 
-  /**
-   * Obtiene datos del cache si están disponibles y son válidos
-   */
   get(idioma: Idioma): Capitulo[] | CapituloUnificado[] | null {
     const cacheKey = idioma === 'es' ? 'spanish' : 'english';
     const lastUpdate = this.cache.lastUpdate[cacheKey];
@@ -27,18 +24,12 @@ class CacheService {
     return null;
   }
 
-  /**
-   * Guarda datos en el cache
-   */
   set(idioma: Idioma, data: Capitulo[] | CapituloUnificado[]): void {
     const cacheKey = idioma === 'es' ? 'spanish' : 'english';
     this.cache[cacheKey] = data as any;
     this.cache.lastUpdate[cacheKey] = Date.now();
   }
 
-  /**
-   * Limpia el cache
-   */
   clear(): void {
     this.cache = {
       spanish: null,
@@ -47,21 +38,18 @@ class CacheService {
     };
   }
 
-  /**
-   * Obtiene el estado del cache
-   */
   getStatus() {
     return {
       spanish: {
         count: this.cache.spanish?.length || 0,
-        lastUpdate: this.cache.lastUpdate.spanish 
-          ? new Date(this.cache.lastUpdate.spanish).toISOString() 
+        lastUpdate: this.cache.lastUpdate.spanish
+          ? new Date(this.cache.lastUpdate.spanish).toISOString()
           : null
       },
       english: {
         count: this.cache.english?.length || 0,
-        lastUpdate: this.cache.lastUpdate.english 
-          ? new Date(this.cache.lastUpdate.english).toISOString() 
+        lastUpdate: this.cache.lastUpdate.english
+          ? new Date(this.cache.lastUpdate.english).toISOString()
           : null
       }
     };

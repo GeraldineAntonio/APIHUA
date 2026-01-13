@@ -8,19 +8,6 @@ export const SOURCES = {
 
 export const CACHE_TTL = 3600000; // 1 hora en milisegundos
 
-export const PUPPETEER_CONFIG = {
-  headless: 'new' as const,
-  args: [
-    '--no-sandbox',
-    '--disable-setuid-sandbox',
-    '--disable-dev-shm-usage',
-    '--disable-accelerated-2d-canvas',
-    '--no-first-run',
-    '--no-zygote',
-    '--disable-gpu'
-  ]
-};
-
 export const SERVER_PORT = process.env.PORT || 3000;
 
 export const CORS_OPTIONS = {
@@ -28,3 +15,5 @@ export const CORS_OPTIONS = {
   methods: ['GET', 'POST'],
   allowedHeaders: ['Content-Type']
 };
+
+export const FLARESOLVERR_URL = process.env.FLARESOLVERR_URL || 'http://localhost:8191/v1';

@@ -1,11 +1,11 @@
 // src/index.ts
 
+import 'dotenv/config';
 import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import capitulosRoutes from './routes/capitulos.routes.js';
 import { SERVER_PORT, CORS_OPTIONS } from './config/constants.js';
 import { logger } from './utils/logger.js';
-import { scraperService } from './services/scraper.service.js';
 
 const app: Application = express();
 
@@ -34,7 +34,8 @@ app.get('/', (req: Request, res: Response) => {
       contenido: '/api/capitulo/contenido?url=...&fuente=...',
       limpiar_cache: '/api/cache/clear',
       health: '/api/health'
-    }
+    },
+    status: 'online'
   });
 });
 
@@ -69,7 +70,6 @@ const server = app.listen(SERVER_PORT, () => {
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM recibido, cerrando servidor...');
-  await scraperService.closeBrowser();
   server.close(() => {
     logger.info('Servidor cerrado');
     process.exit(0);
@@ -78,7 +78,6 @@ process.on('SIGTERM', async () => {
 
 process.on('SIGINT', async () => {
   logger.info('SIGINT recibido, cerrando servidor...');
-  await scraperService.closeBrowser();
   server.close(() => {
     logger.info('Servidor cerrado');
     process.exit(0);
