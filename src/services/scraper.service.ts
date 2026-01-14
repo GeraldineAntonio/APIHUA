@@ -8,12 +8,11 @@ import { SOURCES, FLARESOLVERR_URL } from '../config/constants.js';
 class ScraperService {
 
   /**
-   * Resolver Cloudflare con FlareSolverr
+   * Resolver Cloudflare con FlareSolverr - VERSIÓN SIMPLE
    */
   private async solveCloudflare(url: string, maxTimeout = 60000): Promise<string> {
     try {
       console.log(`🔓 Resolviendo Cloudflare para: ${url}`);
-      console.log(`⏳ Tiempo máximo de espera: ${maxTimeout / 1000} segundos...`);
 
       const response = await axios.post<FlareSolverrResponse>(
         FLARESOLVERR_URL,
@@ -32,190 +31,381 @@ class ScraperService {
 
       if (response.data.status === 'ok' && response.data.solution) {
         console.log(`✅ Cloudflare resuelto exitosamente`);
-        console.log(`📊 Status HTTP: ${response.data.solution.status}`);
-        console.log(`📦 HTML recibido: ${response.data.solution.response.length} caracteres`);
         return response.data.solution.response;
       } else {
         throw new Error(`FlareSolverr failed: ${response.data.message}`);
       }
     } catch (error: any) {
       if (error.code === 'ECONNREFUSED') {
-        throw new Error(
-          '❌ FlareSolverr no está corriendo. Ejecuta: docker start flaresolverr'
-        );
-      }
-      if (error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED') {
-        throw new Error('❌ Timeout esperando respuesta de FlareSolverr. Intenta aumentar maxTimeout.');
+        throw new Error('❌ FlareSolverr no está corriendo. Ejecuta: docker start flaresolverr');
       }
       throw new Error(`Error resolviendo Cloudflare: ${error.message}`);
     }
   }
 
   /**
-   * Scrape Skydemon con FlareSolverr
+   * Scrape Skydemon - VERSIÓN SIMPLIFICADA Y ROBUSTA
    */
   async scrapeSkydemon(): Promise<Capitulo[]> {
     try {
       console.log('\n═══════════════════════════════════════════════════');
-      console.log('📖 Scraping Skydemon Order (Inglés) con FlareSolverr');
+      console.log('📖 Scraping Skydemon Order (Inglés)');
       console.log('═══════════════════════════════════════════════════\n');
-      console.log(`📍 URL: ${SOURCES.ENGLISH_SKYDEMON}`);
+      console.log(`📍 URL: ${SOURCES.ENGLISH_SKYDEMON}\n`);
 
+      // Obtener HTML
       const html = await this.solveCloudflare(SOURCES.ENGLISH_SKYDEMON, 90000);
+      
+      // Guardar HTML para debug
+      try {
+        const fs = await import('fs/promises');
+        await fs.writeFile('debug-skydemon.html', html);
+        console.log('✅ HTML guardado en: debug-skydemon.html\n');
+      } catch (e) {
+        console.log('⚠️  No se pudo guardar debug HTML\n');
+      }
 
       const $ = cheerio.load(html);
-      const capitulos: Capitulo[] = [];
+      
+      console.log('📊 ANÁLISIS DE LA PÁGINA:');
+      console.log(`   - Total de enlaces: ${$('a').length}`);
+      console.log(`   - Título de la página: ${$('title').text()}`);
+      console.log(`   - H1: ${$('h1').first().text().substring(0, 100)}`);
+      console.log('');
 
-      console.log('\n🔍 Analizando HTML...');
+      // Buscar capítulos con MÚLTIPLES estrategias
+      const capitulosEncontrados = new Map<number, Capitulo>();
 
-      // Estadísticas
-      let totalLinks = 0;
-      const patterns = {
-        chapter: 0,
-        chapterInUrl: 0,
-        skydemonLinks: 0,
-        validChapters: 0
-      };
+      // ESTRATEGIA 1: Selectores específicos de WordPress/Manga
+      console.log('🔍 ESTRATEGIA 1: Selectores específicos de manga');
+      const selectorsManga = [
+        '.wp-manga-chapter',
+        '.listing-chapters_wrap li',
+        '.version-chap',
+        'li.wp-manga-chapter',
+        '.chapter-release-date'
+      ];
 
-      // Buscar todos los enlaces
-      $('a').each((_, element) => {
-        totalLinks++;
-        const $element = $(element);
-        const titulo = $element.text().trim();
-        const href = $element.attr('href') || '';
-
-        // Estadísticas
-        if (titulo.toLowerCase().includes('chapter')) patterns.chapter++;
-        if (href.toLowerCase().includes('chapter')) patterns.chapterInUrl++;
-        if (href.includes('skydemonorder.com')) patterns.skydemonLinks++;
-
-        // Construir URL completa
-        let url = href;
-        if (href && !href.startsWith('http')) {
-          url = href.startsWith('/')
-            ? `https://skydemonorder.com${href}`
-            : `https://skydemonorder.com/${href}`;
-        }
-
-        // Buscar patrón "Chapter XXX"
-        const numeroMatchTitulo = titulo.match(/chapter\s*[:\-]?\s*(\d+)/i);
-        const numeroMatchUrl = href.match(/chapter[\/\-_]?(\d+)/i);
-        const numeroMatch = numeroMatchTitulo || numeroMatchUrl;
-
-        if (numeroMatch) {
-          const numero = parseInt(numeroMatch[1]);
-
-          if (numero > 0 && numero < 10000) {
-            patterns.validChapters++;
-
-            // Log primeros 5 matches
-            if (capitulos.length < 5) {
-              console.log(`   ✓ Match #${capitulos.length + 1}: Chapter ${numero}`);
-              console.log(`     Título: "${titulo.substring(0, 50)}"`);
-              console.log(`     URL: ${url.substring(0, 70)}...\n`);
+      for (const selector of selectorsManga) {
+        const elementos = $(selector);
+        if (elementos.length > 0) {
+          console.log(`   ✓ Encontrados ${elementos.length} con selector: ${selector}`);
+          
+          elementos.each((_, el) => {
+            const $el = $(el);
+            const $link = $el.find('a').first().length > 0 ? $el.find('a').first() : $el;
+            
+            const texto = $link.text().trim();
+            const href = $link.attr('href') || '';
+            
+            console.log(`      Texto: "${texto.substring(0, 60)}"`);
+            console.log(`      URL: ${href.substring(0, 80)}\n`);
+            
+            const cap = this.extraerCapitulo(texto, href);
+            if (cap && !capitulosEncontrados.has(cap.numero)) {
+              capitulosEncontrados.set(cap.numero, cap);
             }
+          });
+        }
+      }
 
-            if (!capitulos.find(c => c.numero === numero)) {
-              capitulos.push({
-                titulo: titulo || `Chapter ${numero}`,
-                url: url,
-                numero: numero,
+      console.log(`   📌 Capítulos encontrados con selectores manga: ${capitulosEncontrados.size}\n`);
+
+      // ESTRATEGIA 2: Buscar en TODOS los enlaces
+      console.log('🔍 ESTRATEGIA 2: Análisis de todos los enlaces');
+      let contadorLinks = 0;
+      
+      $('a').each((_, el) => {
+        const $el = $(el);
+        const texto = $el.text().trim();
+        const href = $el.attr('href') || '';
+        
+        // PATRÓN ESPECÍFICO: enlaces que contienen /projects/ID/NUMERO-
+        const esCapituloSkydemon = /\/projects\/[\w-]+\/\d+-/.test(href);
+        
+        // Solo analizar enlaces que parezcan capítulos
+        const pareceCapitulo = 
+          esCapituloSkydemon ||
+          /chapter/i.test(texto) || 
+          /chapter/i.test(href) ||
+          /ch[\-_\s]?\d+/i.test(texto) ||
+          /ch[\-_\s]?\d+/i.test(href) ||
+          /cap[íi]tulo/i.test(texto);
+        
+        if (pareceCapitulo) {
+          contadorLinks++;
+          
+          if (contadorLinks <= 50) { // Mostrar los primeros 50
+            console.log(`   ${contadorLinks}. "${texto.substring(0, 50)}"`);
+            console.log(`      → ${href.substring(0, 100)}\n`);
+          }
+          
+          const cap = this.extraerCapitulo(texto, href);
+          if (cap && !capitulosEncontrados.has(cap.numero)) {
+            capitulosEncontrados.set(cap.numero, cap);
+          }
+        }
+      });
+
+      console.log(`   📌 Total de enlaces analizados: ${contadorLinks}`);
+      console.log(`   📌 Capítulos únicos encontrados: ${capitulosEncontrados.size}\n`);
+
+      // ESTRATEGIA 3: Buscar en elementos con data-* attributes
+      console.log('🔍 ESTRATEGIA 3: Atributos data-*');
+      const elementosConData = $('[data-chapter], [data-id], [data-post-id], [data-num]');
+      
+      if (elementosConData.length > 0) {
+        console.log(`   ✓ Encontrados ${elementosConData.length} elementos con atributos data-*`);
+        
+        elementosConData.each((_, el) => {
+          const $el = $(el);
+          const dataChapter = $el.attr('data-chapter');
+          const dataId = $el.attr('data-id');
+          const dataPost = $el.attr('data-post-id');
+          const dataNum = $el.attr('data-num');
+          
+          const numero = parseInt(dataChapter || dataId || dataPost || dataNum || '0');
+          
+          if (numero > 0 && numero < 10000) {
+            const texto = $el.text().trim();
+            const href = $el.attr('href') || $el.find('a').first().attr('href') || '';
+            
+            console.log(`   📌 data=${numero}, texto="${texto.substring(0, 40)}", href=${href.substring(0, 60)}\n`);
+            
+            if (!capitulosEncontrados.has(numero)) {
+              let url = href;
+              if (href && !href.startsWith('http')) {
+                url = href.startsWith('/') 
+                  ? `https://skydemonorder.com${href}`
+                  : `https://skydemonorder.com/${href}`;
+              }
+              
+              capitulosEncontrados.set(numero, {
+                numero,
+                titulo: texto || `Chapter ${numero}`,
+                url: url || `https://skydemonorder.com/chapter-${numero}`,
                 idioma: 'en',
                 fuente: 'skydemon'
               });
             }
           }
+        });
+      }
+
+      console.log(`   📌 Capítulos con data-*: ${capitulosEncontrados.size}\n`);
+
+      // ESTRATEGIA 4: Buscar JSON embebido
+      console.log('🔍 ESTRATEGIA 4: JSON embebido en scripts');
+      $('script[type="application/json"], script[type="application/ld+json"]').each((i, el) => {
+        const contenido = $(el).html() || '';
+        if (contenido.includes('chapter') || contenido.includes('Chapter')) {
+          console.log(`   📋 JSON encontrado (${contenido.length} caracteres)`);
+          console.log(`      ${contenido.substring(0, 200)}...\n`);
+          
+          try {
+            const json = JSON.parse(contenido);
+            const capsFromJson = this.extraerCapitulosDeJSON(json);
+            
+            capsFromJson.forEach(cap => {
+              if (!capitulosEncontrados.has(cap.numero)) {
+                capitulosEncontrados.set(cap.numero, cap);
+              }
+            });
+            
+            if (capsFromJson.length > 0) {
+              console.log(`   ✅ Extraídos ${capsFromJson.length} capítulos del JSON\n`);
+            }
+          } catch (e) {
+            console.log(`   ⚠️  No se pudo parsear JSON\n`);
+          }
         }
       });
 
-      // Mostrar estadísticas
+      // Convertir a array y ordenar
+      const capitulos = Array.from(capitulosEncontrados.values()).sort((a, b) => a.numero - b.numero);
+
+      // Resultados finales
       console.log('═══════════════════════════════════════════════════');
-      console.log('📊 ESTADÍSTICAS DE SCRAPING');
+      console.log('📊 RESULTADOS FINALES');
       console.log('═══════════════════════════════════════════════════');
-      console.log(`   Total de enlaces analizados: ${totalLinks}`);
-      console.log(`   Enlaces con "chapter" en texto: ${patterns.chapter}`);
-      console.log(`   Enlaces con "chapter" en URL: ${patterns.chapterInUrl}`);
-      console.log(`   Enlaces de skydemonorder.com: ${patterns.skydemonLinks}`);
-      console.log(`   Capítulos válidos encontrados: ${patterns.validChapters}`);
-      console.log(`   Capítulos únicos extraídos: ${capitulos.length}`);
-      console.log('═══════════════════════════════════════════════════\n');
-
-      // Debug si no encuentra nada
-      if (capitulos.length === 0) {
-        console.log('⚠️  NO SE ENCONTRARON CAPÍTULOS - MODO DEBUG ACTIVADO\n');
-
-        // Guardar HTML para análisis
-        try {
-          const fs = await import('fs/promises');
-          await fs.writeFile('debug-skydemon.html', html);
-          console.log('✅ HTML guardado en: debug-skydemon.html\n');
-        } catch (e) {
-          console.log('❌ No se pudo guardar debug HTML\n');
-        }
-
-        // Análisis de estructura
-        console.log('📋 ANÁLISIS DE ESTRUCTURA HTML:');
-        console.log(`   - Título página: ${$('title').text()}`);
-        console.log(`   - Total elementos <a>: ${$('a').length}`);
-        console.log(`   - Elementos [class*="chapter"]: ${$('[class*="chapter"]').length}`);
-        console.log(`   - Elementos [id*="chapter"]: ${$('[id*="chapter"]').length}`);
-        console.log(`   - Longitud HTML: ${html.length} chars\n`);
-
-        // Verificar bloqueos
-        if (html.includes('challenge-platform') || html.includes('cf-challenge')) {
-          console.log('❌ CLOUDFLARE CHALLENGE DETECTADO');
-          console.log('   La página aún muestra el challenge de Cloudflare\n');
-        }
-
-        if (html.includes('Just a moment')) {
-          console.log('❌ CLOUDFLARE "JUST A MOMENT" DETECTADO');
-          console.log('   Aumenta el timeout o revisa FlareSolverr\n');
-        }
-
-        if (html.length < 5000) {
-          console.log('❌ HTML MUY CORTO - POSIBLE ERROR');
-          console.log(`   Contenido:\n${html.substring(0, 500)}\n`);
-        }
-
-        // Mostrar primeros enlaces
-        console.log('📎 PRIMEROS 10 ENLACES EN LA PÁGINA:');
-        $('a').slice(0, 10).each((i, el) => {
-          const $el = $(el);
-          const text = $el.text().trim();
-          const href = $el.attr('href');
-          console.log(`   ${i + 1}. "${text.substring(0, 50)}"`);
-          console.log(`      → ${href}\n`);
-        });
-
-        // Buscar patrones alternativos
-        console.log('🔎 BÚSQUEDA DE PATRONES ALTERNATIVOS:');
-        const altPatterns = ['cap ', 'ch ', 'ch-', 'ep ', 'episode', 'capítulo', 'chapters'];
-        altPatterns.forEach(pattern => {
-          const count = html.toLowerCase().split(pattern).length - 1;
-          if (count > 0) {
-            console.log(`   - "${pattern}": ${count} ocurrencias`);
+      console.log(`   Total de capítulos: ${capitulos.length}`);
+      
+      if (capitulos.length > 0) {
+        console.log(`   Rango: Capítulo ${capitulos[0].numero} - ${capitulos[capitulos.length - 1].numero}\n`);
+        
+        console.log('📋 LISTA DE CAPÍTULOS:');
+        capitulos.forEach((cap, i) => {
+          if (i < 15 || i >= capitulos.length - 5) {
+            console.log(`   ${cap.numero}. ${cap.titulo.substring(0, 60)}`);
+          } else if (i === 15) {
+            console.log(`   ... (${capitulos.length - 20} más) ...`);
           }
         });
-        console.log('');
+      } else {
+        console.log('\n⚠️  NO SE ENCONTRARON CAPÍTULOS');
+        console.log('\n💡 SUGERENCIAS:');
+        console.log('   1. Revisa el archivo debug-skydemon.html');
+        console.log('   2. Busca manualmente cómo se muestran los capítulos en el HTML');
+        console.log('   3. Verifica que la URL sea correcta');
+        console.log('   4. Puede que el sitio use carga dinámica con JavaScript');
       }
+      
+      console.log('═══════════════════════════════════════════════════\n');
 
-      const sorted = capitulos.sort((a, b) => a.numero - b.numero);
+      return capitulos;
 
-      if (sorted.length > 0) {
-        console.log('✅ CAPÍTULOS ENCONTRADOS:');
-        console.log(`   Total: ${sorted.length} capítulos\n`);
-        console.log('📋 PRIMEROS 10 CAPÍTULOS:');
-        sorted.slice(0, 10).forEach((cap, i) => {
-          console.log(`   ${i + 1}. Chapter ${cap.numero}: ${cap.titulo.substring(0, 50)}`);
-        });
-        console.log('');
-      }
-
-      return sorted;
     } catch (error) {
       console.error('\n❌ ERROR EN SCRAPING DE SKYDEMON:', error);
       throw error;
     }
+  }
+
+  /**
+   * Extraer información de capítulo desde texto y URL
+   */
+  private extraerCapitulo(texto: string, href: string): Capitulo | null {
+    let numero = 0;
+
+    // PATRÓN ESPECÍFICO PARA SKYDEMON: /projects/ID/NUMERO-titulo
+    const patronSkydemon = /\/projects\/[\w-]+\/(\d+)-/;
+    const matchSkydemon = href.match(patronSkydemon);
+    
+    if (matchSkydemon) {
+      numero = parseInt(matchSkydemon[1]);
+    }
+
+    // Si no funcionó el patrón de Skydemon, intentar patrones generales
+    if (numero === 0) {
+      const patrones = [
+        /chapter\s*[:\-]?\s*(\d+)/i,
+        /ch\.?\s*[:\-]?\s*(\d+)/i,
+        /cap[íi]tulo\s*[:\-]?\s*(\d+)/i,
+        /ep(?:isode)?\s*[:\-]?\s*(\d+)/i,
+        /\bch[\-_]?(\d+)\b/i,
+        /chapter[\-_\/](\d+)/i,
+        /\/(\d+)-/,  // Número antes de guión
+        /\/(\d+)\/?$/,
+        /\b(\d+)\b/
+      ];
+
+      // Buscar en el texto primero
+      for (const patron of patrones) {
+        const match = texto.match(patron);
+        if (match) {
+          numero = parseInt(match[1]);
+          break;
+        }
+      }
+
+      // Si no se encontró en el texto, buscar en la URL
+      if (numero === 0) {
+        for (const patron of patrones) {
+          const match = href.match(patron);
+          if (match) {
+            numero = parseInt(match[1]);
+            break;
+          }
+        }
+      }
+    }
+
+    // Validar número
+    if (numero <= 0 || numero >= 10000) {
+      return null;
+    }
+
+    // Validar que no sea un enlace inválido
+    const patronesInvalidos = [
+      '/tag/', '/category/', '/author/', '/page/', '/search/',
+      'facebook.com', 'twitter.com', 'instagram.com', 'discord.com',
+      'patreon.com', 'youtube.com', 'reddit.com', 'pinterest.com'
+    ];
+
+    const urlLower = href.toLowerCase();
+    if (patronesInvalidos.some(invalido => urlLower.includes(invalido))) {
+      return null;
+    }
+
+    // Construir URL completa
+    let url = href;
+    if (href && !href.startsWith('http')) {
+      url = href.startsWith('/') 
+        ? `https://skydemonorder.com${href}`
+        : `https://skydemonorder.com/${href}`;
+    }
+
+    return {
+      numero,
+      titulo: texto || `Chapter ${numero}`,
+      url: url || `https://skydemonorder.com/chapter-${numero}`,
+      idioma: 'en',
+      fuente: 'skydemon'
+    };
+  }
+
+  /**
+   * Extraer capítulos de un objeto JSON
+   */
+  private extraerCapitulosDeJSON(json: any): Capitulo[] {
+    const capitulos: Capitulo[] = [];
+    
+    const procesarObjeto = (obj: any) => {
+      if (!obj || typeof obj !== 'object') return;
+      
+      // Si es un array, procesar cada elemento
+      if (Array.isArray(obj)) {
+        obj.forEach(item => procesarObjeto(item));
+        return;
+      }
+      
+      // Buscar propiedades relevantes
+      const numero = 
+        obj.chapter || 
+        obj.chapter_number || 
+        obj.number || 
+        obj.num || 
+        obj.id;
+        
+      const titulo = 
+        obj.title || 
+        obj.name || 
+        obj.chapter_name || 
+        obj.post_title;
+        
+      const url = 
+        obj.url || 
+        obj.link || 
+        obj.permalink || 
+        obj.href;
+      
+      if (numero) {
+        const num = parseInt(String(numero).match(/\d+/)?.[0] || '0');
+        if (num > 0 && num < 10000) {
+          let urlFinal = url || '';
+          if (urlFinal && !urlFinal.startsWith('http')) {
+            urlFinal = `https://skydemonorder.com${urlFinal.startsWith('/') ? urlFinal : '/' + urlFinal}`;
+          }
+          
+          capitulos.push({
+            numero: num,
+            titulo: titulo || `Chapter ${num}`,
+            url: urlFinal || `https://skydemonorder.com/chapter-${num}`,
+            idioma: 'en',
+            fuente: 'skydemon'
+          });
+        }
+      }
+      
+      // Recorrer propiedades del objeto recursivamente
+      Object.values(obj).forEach(valor => {
+        if (typeof valor === 'object' && valor !== null) {
+          procesarObjeto(valor);
+        }
+      });
+    };
+    
+    procesarObjeto(json);
+    return capitulos;
   }
 
   /**
@@ -374,7 +564,6 @@ class ScraperService {
     try {
       console.log(`\n📄 Obteniendo contenido de: ${url}`);
 
-      // Si es Skydemon, usar FlareSolverr
       const html = url.includes('skydemonorder.com')
         ? await this.solveCloudflare(url, 60000)
         : (await axios.get(url, {
@@ -387,7 +576,6 @@ class ScraperService {
       const $ = cheerio.load(html);
       let contenido = '';
 
-      // Selectores según la fuente
       if (fuente === 'blogspot') {
         contenido = $('.post-body, article, .entry-content').text().trim();
       } else if (fuente === 'maehwasup' || fuente === 'skydemon') {
