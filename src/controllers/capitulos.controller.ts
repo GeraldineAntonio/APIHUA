@@ -5,6 +5,27 @@ import { scraperService } from '../services/scraper.service.js';
 import { cacheService } from '../services/cache.service.js';
 import { ApiResponse, Capitulo, CapituloUnificado, Idioma } from '../types/index.js';
 import { logger } from '../utils/logger.js';
+import { promises as fs } from 'fs';
+import path from 'path';
+
+// Variable para caché del JSON
+let jsonData: any = null;
+
+// Función para cargar datos desde JSON
+async function loadFromJson() {
+  if (jsonData) return jsonData;
+  
+  try {
+    const jsonPath = path.join(process.cwd(), 'data', 'capitulos.json');
+    const data = await fs.readFile(jsonPath, 'utf-8');
+    jsonData = JSON.parse(data);
+    logger.info('📦 Datos cargados desde JSON');
+    return jsonData;
+  } catch (error) {
+    logger.warn('⚠️  No se pudo cargar JSON, usando scraping en vivo');
+    return null;
+  }
+}
 
 export class CapitulosController {
   async getCapitulos(req: Request, res: Response): Promise<void> {
@@ -19,6 +40,23 @@ export class CapitulosController {
     }
 
     try {
+      // Intentar cargar desde JSON primero (en producción)
+      if (process.env.NODE_ENV === 'production') {
+        const data = await loadFromJson();
+        if (data) {
+          const capitulos = idioma === 'es' ? data.espanol : data.ingles;
+          
+          res.json({
+            success: true,
+            data: capitulos,
+            total: capitulos.length,
+            lastUpdate: data.lastUpdate
+          } as ApiResponse<typeof capitulos>);
+          return;
+        }
+      }
+
+      // Verificar caché
       const cachedData = cacheService.get(idioma);
       if (cachedData) {
         logger.info(`📦 Usando cache para ${idioma}`);
@@ -32,6 +70,7 @@ export class CapitulosController {
 
       logger.info(`🔍 Scraping ${idioma}...`);
 
+      // Scraping en vivo (solo en desarrollo)
       if (idioma === 'es') {
         const capitulos = await scraperService.scrapeBlogspot();
         cacheService.set('es', capitulos);
@@ -42,7 +81,6 @@ export class CapitulosController {
           total: capitulos.length
         } as ApiResponse<Capitulo[]>);
       } else {
-        // Scraping paralelo de ambas fuentes
         const [capitulosMaehwa, capitulosSkydemon] = await Promise.allSettled([
           scraperService.scrapeMaehwasup(),
           scraperService.scrapeSkydemon()
@@ -52,16 +90,10 @@ export class CapitulosController {
 
         if (capitulosMaehwa.status === 'fulfilled') {
           todosCapitulos.push(...capitulosMaehwa.value);
-          logger.success(`Maehwasup: ${capitulosMaehwa.value.length} capítulos`);
-        } else {
-          logger.error('Error en Maehwasup:', capitulosMaehwa.reason);
         }
 
         if (capitulosSkydemon.status === 'fulfilled') {
           todosCapitulos.push(...capitulosSkydemon.value);
-          logger.success(`Skydemon: ${capitulosSkydemon.value.length} capítulos`);
-        } else {
-          logger.error('Error en Skydemon:', capitulosSkydemon.reason);
         }
 
         const capitulosUnificados = scraperService.unificarCapitulosIngles(todosCapitulos);
@@ -114,27 +146,30 @@ export class CapitulosController {
 
   clearCache(req: Request, res: Response): void {
     cacheService.clear();
+    jsonData = null; // Limpiar también caché del JSON
+    
     res.json({
       success: true,
       data: { message: 'Cache limpiado exitosamente' }
     } as ApiResponse<{ message: string }>);
   }
 
-  getHealth(req: Request, res: Response): void {
+  async getHealth(req: Request, res: Response): Promise<void> {
     const cacheStatus = cacheService.getStatus();
+    const data = await loadFromJson();
 
     res.json({
       success: true,
       data: {
         status: 'online',
         timestamp: new Date().toISOString(),
-        cache: cacheStatus
+        cache: cacheStatus,
+        jsonData: data ? {
+          lastUpdate: data.lastUpdate,
+          stats: data.stats
+        } : null
       }
-    } as ApiResponse<{
-      status: string;
-      timestamp: string;
-      cache: ReturnType<typeof cacheService.getStatus>;
-    }>);
+    } as ApiResponse<any>);
   }
 }
 

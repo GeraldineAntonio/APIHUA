@@ -1,30 +1,24 @@
 {
   "name": "monte-hua-api",
   "version": "1.0.0",
-  "description": "API REST para extraer capítulos de Monte Hua",
+  "description": "API REST automática para Mount Hua Sect",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "clean": "rm -rf dist"
+    "scrape": "tsx scripts/scrape.ts"
   },
-  "keywords": [
-    "api",
-    "scraper",
-    "typescript",
-    "monte-hua"
-  ],
+  "keywords": ["api", "scraper", "mount-hua"],
   "author": "Tu Nombre",
   "license": "MIT",
   "dependencies": {
-    "axios": "^1.13.2",
-    "cheerio": "^1.1.2",
+    "axios": "^1.6.5",
+    "cheerio": "^1.0.0-rc.12",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
-    "express": "^4.18.2",
-    "puppeteer": "^21.11.0"
+    "express": "^4.18.2"
   },
   "devDependencies": {
     "@types/cheerio": "^0.22.35",
@@ -33,5 +27,8 @@
     "@types/node": "^20.10.5",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=20.0.0"
   }
 }

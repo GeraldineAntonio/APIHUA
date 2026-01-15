@@ -1,5 +1,3 @@
-// src/utils/logger.ts
-
 export class Logger {
   private static formatDate(): string {
     return new Date().toLocaleString('es-MX', {
@@ -27,12 +25,6 @@ export class Logger {
 
   static warn(message: string, ...args: any[]): void {
     console.warn(`[${this.formatDate()}] ⚠️  WARN: ${message}`, ...args);
-  }
-
-  static debug(message: string, ...args: any[]): void {
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[${this.formatDate()}] 🐛 DEBUG: ${message}`, ...args);
-    }
   }
 }
 

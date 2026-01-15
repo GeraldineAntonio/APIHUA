@@ -1,0 +1,74 @@
+name: Scrape Capítulos Automático
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'  # Cada lunes a las 3 AM UTC
+  workflow_dispatch:  # Permite ejecución manual
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Instalar dependencias
+        run: npm install
+      
+      - name: Iniciar FlareSolverr
+        run: |
+          docker run -d \
+            --name flaresolverr \
+            -p 8191:8191 \
+            -e LOG_LEVEL=info \
+            ghcr.io/flaresolverr/flaresolverr:latest
+          
+          echo "Esperando a FlareSolverr..."
+          sleep 15
+          
+          curl -f http://localhost:8191/health || exit 1
+          echo "✅ FlareSolverr listo"
+      
+      - name: Ejecutar scraping
+        run: |
+          echo "🚀 Iniciando scraping..."
+          npm run scrape
+          echo "✅ Scraping completado"
+        env:
+          FLARESOLVERR_URL: http://localhost:8191/v1
+      
+      - name: Verificar cambios
+        id: check_changes
+        run: |
+          if git diff --quiet data/capitulos.json; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Commit y push
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          TOTAL_ES=$(jq '.stats.totalEspanol' data/capitulos.json)
+          TOTAL_EN=$(jq '.stats.totalIngles' data/capitulos.json)
+          
+          git add data/capitulos.json
+          git commit -m "🤖 Auto-update: ${TOTAL_ES} caps ES, ${TOTAL_EN} caps EN - $(date +%Y-%m-%d)"
+          git push
+      
+      - name: Limpiar
+        if: always()
+        run: |
+          docker stop flaresolverr || true
+          docker rm flaresolverr || true

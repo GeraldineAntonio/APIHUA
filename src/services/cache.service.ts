@@ -1,5 +1,3 @@
-// src/services/cache.service.ts
-
 import { CacheData, Capitulo, CapituloUnificado, Idioma } from '../types/index.js';
 import { CACHE_TTL } from '../config/constants.js';
 

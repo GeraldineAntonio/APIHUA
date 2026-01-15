@@ -1,5 +1,3 @@
-// src/routes/capitulos.routes.ts
-
 import { Router } from 'express';
 import { capitulosController } from '../controllers/capitulos.controller.js';
 

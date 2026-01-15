@@ -1,0 +1,42 @@
+name: API Health Check
+
+on:
+  schedule:
+    - cron: '0 12 * * *'  # Cada día a las 12 PM UTC
+  workflow_dispatch:
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Verificar API
+        run: |
+          echo "🏥 Verificando API..."
+          
+          # Cambiar por tu URL de Render
+          API_URL="https://monte-hua-api.onrender.com"
+          
+          response=$(curl -s -o /dev/null -w "%{http_code}" $API_URL/api/health)
+          
+          if [ $response -eq 200 ]; then
+            echo "✅ API funcionando"
+          else
+            echo "❌ API no responde (HTTP $response)"
+            exit 1
+          fi
+      
+      - name: Verificar datos
+        run: |
+          API_URL="https://monte-hua-api.onrender.com"
+          
+          ES_COUNT=$(curl -s $API_URL/api/capitulos/es | jq '.total')
+          EN_COUNT=$(curl -s $API_URL/api/capitulos/en | jq '.total')
+          
+          echo "📊 Español: $ES_COUNT capítulos"
+          echo "📊 Inglés: $EN_COUNT capítulos"
+          
+          if [ $ES_COUNT -lt 10 ] || [ $EN_COUNT -lt 10 ]; then
+            echo "❌ Muy pocos capítulos"
+            exit 1
+          fi

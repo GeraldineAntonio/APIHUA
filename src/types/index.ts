@@ -1,5 +1,3 @@
-// src/types/index.ts
-
 export interface Capitulo {
   numero: number;
   titulo: string;
@@ -25,6 +23,7 @@ export interface ApiResponse<T> {
   data?: T;
   error?: string;
   total?: number;
+  lastUpdate?: string;
 }
 
 export interface CacheData {

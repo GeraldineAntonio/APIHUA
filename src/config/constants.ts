@@ -1,12 +1,10 @@
-// src/config/constants.ts
-
 export const SOURCES = {
   SPANISH_BLOGSPOT: 'https://animeshoy12.blogspot.com/p/el-regreso-de-la-secta-del-monte-hua_2.html',
   ENGLISH_MAEHWASUP: 'https://maehwasup.com/',
   ENGLISH_SKYDEMON: 'https://skydemonorder.com/projects/3801994495-return-of-the-mount-hua-sect'
 } as const;
 
-export const CACHE_TTL = 3600000; // 1 hora en milisegundos
+export const CACHE_TTL = 3600000; // 1 hora
 
 export const SERVER_PORT = process.env.PORT || 3000;
 
