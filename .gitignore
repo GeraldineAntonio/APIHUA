@@ -1,6 +1,6 @@
 node_modules/
-dist/
 *.log
 .env
 debug-*.html
 cache-*.json
+# NO ignores dist/ porque Render lo necesita
