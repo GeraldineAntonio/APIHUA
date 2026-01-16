@@ -2,7 +2,7 @@ name: Scrape Capítulos Automático
 
 on:
   schedule:
-    - cron: '0 3 * * 1'  # Cada lunes a las 3 AM UTC
+    - cron: '0 3 * * 1'
   workflow_dispatch:
 
 permissions:
@@ -58,15 +58,12 @@ jobs:
           exit 1
       
       - name: Ejecutar scraping
-        run: |
-          echo "🚀 Iniciando scraping..."
-          npm run scrape
-          echo "✅ Scraping completado"
+        run: npm run scrape
         env:
           FLARESOLVERR_URL: http://localhost:8191/v1
         timeout-minutes: 15
       
-      - name: Verificar que se creó el archivo
+      - name: Verificar archivo generado
         run: |
           if [ ! -f data/capitulos.json ]; then
             echo "❌ No se generó capitulos.json"
@@ -76,116 +73,77 @@ jobs:
           TOTAL_ES=$(jq -r '.stats.totalEspanol // 0' data/capitulos.json)
           TOTAL_EN=$(jq -r '.stats.totalIngles // 0' data/capitulos.json)
           
-          echo "📊 Resultados del scraping:"
-          echo "   - Español: $TOTAL_ES capítulos"
-          echo "   - Inglés: $TOTAL_EN capítulos"
-          
-          if [ $TOTAL_ES -lt 5 ] || [ $TOTAL_EN -lt 5 ]; then
-            echo "⚠️ Advertencia: Muy pocos capítulos encontrados"
-          fi
+          echo "📊 Español: $TOTAL_ES | Inglés: $TOTAL_EN"
       
       - name: Verificar cambios
         id: check_changes
         run: |
           if git diff --quiet data/capitulos.json; then
-            echo "ℹ️ No hay cambios en los datos"
             echo "has_changes=false" >> $GITHUB_OUTPUT
           else
-            echo "✅ Se detectaron cambios"
             echo "has_changes=true" >> $GITHUB_OUTPUT
           fi
       
-      - name: Commit y push con retry
+      - name: Commit y push
         if: steps.check_changes.outputs.has_changes == 'true'
         run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
           
           TOTAL_ES=$(jq -r '.stats.totalEspanol' data/capitulos.json)
           TOTAL_EN=$(jq -r '.stats.totalIngles' data/capitulos.json)
-          COMMIT_MSG="🤖 Auto-update: ${TOTAL_ES} caps ES, ${TOTAL_EN} caps EN - $(date +%Y-%m-%d)"
           
-          # Función para intentar push
-          attempt_push() {
-            local attempt=$1
-            echo "📤 Intento $attempt/5..."
+          MAX_ATTEMPTS=5
+          ATTEMPT=1
+          
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            echo "📤 Intento $ATTEMPT/$MAX_ATTEMPTS"
             
             # Sincronizar con remote
             git fetch origin main
             
-            # Verificar si hay cambios remotos
-            LOCAL=$(git rev-parse HEAD)
-            REMOTE=$(git rev-parse origin/main)
+            # Guardar cambios locales
+            git add data/capitulos.json
+            git stash
             
-            if [ "$LOCAL" != "$REMOTE" ]; then
-              echo "🔄 Detectados cambios remotos, sincronizando..."
-              
-              # Guardar cambios locales
-              git add data/capitulos.json
-              git stash
-              
-              # Pull con rebase
-              git pull --rebase origin main
-              
-              # Restaurar cambios
-              git stash pop || {
-                echo "⚠️ Conflicto al restaurar cambios"
-                # Si hay conflicto, usar nuestra versión
-                git checkout --ours data/capitulos.json
-                git add data/capitulos.json
-              }
+            # Pull con rebase
+            if git pull --rebase origin main; then
+              echo "✅ Rebase exitoso"
+            else
+              echo "⚠️ Rebase falló, abortando..."
+              git rebase --abort
+              git pull origin main
             fi
             
-            # Hacer commit si no existe
-            if ! git diff --cached --quiet; then
-              git add data/capitulos.json
-              git commit -m "$COMMIT_MSG"
-            elif ! git diff --quiet data/capitulos.json; then
-              git add data/capitulos.json
-              git commit -m "$COMMIT_MSG"
+            # Restaurar cambios
+            if git stash pop; then
+              echo "✅ Cambios restaurados"
+            else
+              echo "⚠️ Conflicto, usando nuestra versión"
+              git checkout --ours data/capitulos.json
             fi
+            
+            git add data/capitulos.json
+            
+            # Hacer commit
+            git commit -m "🤖 Auto-update: ${TOTAL_ES} caps ES, ${TOTAL_EN} caps EN - $(date +%Y-%m-%d)" || true
             
             # Intentar push
             if git push origin main; then
               echo "✅ Push exitoso"
-              return 0
-            else
-              echo "⚠️ Push falló"
-              return 1
-            fi
-          }
-          
-          # Intentar hasta 5 veces
-          for i in {1..5}; do
-            if attempt_push $i; then
               exit 0
             fi
             
-            if [ $i -lt 5 ]; then
-              echo "⏳ Esperando 10 segundos antes de reintentar..."
-              sleep 10
-            fi
+            echo "⚠️ Push falló, reintentando..."
+            ATTEMPT=$((ATTEMPT + 1))
+            sleep 10
           done
           
-          echo "❌ No se pudo hacer push después de 5 intentos"
+          echo "❌ Falló después de $MAX_ATTEMPTS intentos"
           exit 1
       
-      - name: Limpiar Docker
+      - name: Limpiar
         if: always()
         run: |
-          docker stop flaresolverr || true
-          docker rm flaresolverr || true
-      
-      - name: Resumen
-        if: always()
-        run: |
-          echo "================================"
-          echo "📋 RESUMEN DEL WORKFLOW"
-          echo "================================"
-          if [ -f data/capitulos.json ]; then
-            echo "✅ Scraping exitoso"
-            echo "📊 Total Español: $(jq -r '.stats.totalEspanol' data/capitulos.json)"
-            echo "📊 Total Inglés: $(jq -r '.stats.totalIngles' data/capitulos.json)"
-          else
-            echo "❌ El scraping falló"
-          figit add .github/workflows/scrape.yml
+          docker stop flaresolverr 2>/dev/null || true
+          docker rm flaresolverr 2>/dev/null || true
