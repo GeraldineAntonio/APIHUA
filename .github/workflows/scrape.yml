@@ -3,7 +3,7 @@ name: Scrape Capítulos Automático
 on:
   schedule:
     - cron: '0 3 * * 1'  # Cada lunes a las 3 AM UTC
-  workflow_dispatch:  # Permite ejecución manual
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -22,7 +22,6 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           persist-credentials: true
-          fetch-depth: 0
       
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -46,7 +45,6 @@ jobs:
           echo "⏳ Esperando a FlareSolverr..."
           sleep 20
           
-          # Verificar que FlareSolverr está listo
           for i in {1..10}; do
             if curl -f http://localhost:8191/health 2>/dev/null; then
               echo "✅ FlareSolverr listo"
@@ -75,7 +73,6 @@ jobs:
             exit 1
           fi
           
-          # Mostrar estadísticas
           TOTAL_ES=$(jq -r '.stats.totalEspanol // 0' data/capitulos.json)
           TOTAL_EN=$(jq -r '.stats.totalIngles // 0' data/capitulos.json)
           
@@ -90,9 +87,7 @@ jobs:
       - name: Verificar cambios
         id: check_changes
         run: |
-          git add data/capitulos.json
-          
-          if git diff --cached --quiet; then
+          if git diff --quiet data/capitulos.json; then
             echo "ℹ️ No hay cambios en los datos"
             echo "has_changes=false" >> $GITHUB_OUTPUT
           else
@@ -100,7 +95,7 @@ jobs:
             echo "has_changes=true" >> $GITHUB_OUTPUT
           fi
       
-      - name: Commit y push
+      - name: Commit y push con retry
         if: steps.check_changes.outputs.has_changes == 'true'
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
@@ -108,46 +103,71 @@ jobs:
           
           TOTAL_ES=$(jq -r '.stats.totalEspanol' data/capitulos.json)
           TOTAL_EN=$(jq -r '.stats.totalIngles' data/capitulos.json)
+          COMMIT_MSG="🤖 Auto-update: ${TOTAL_ES} caps ES, ${TOTAL_EN} caps EN - $(date +%Y-%m-%d)"
           
-          # Sincronizar con remote antes de hacer commit
-          echo "🔄 Sincronizando con GitHub..."
-          git fetch origin main
-          git rebase origin/main || {
-            echo "⚠️ Conflicto detectado, resolviendo..."
-            git rebase --abort
-            git pull --rebase origin main
-          }
-          
-          # Hacer commit
-          git commit -m "🤖 Auto-update: ${TOTAL_ES} caps ES, ${TOTAL_EN} caps EN - $(date +%Y-%m-%d)"
-          
-          # Intentar push con retry
-          MAX_RETRIES=5
-          RETRY_COUNT=0
-          
-          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-            echo "📤 Intento de push $((RETRY_COUNT + 1))/$MAX_RETRIES..."
+          # Función para intentar push
+          attempt_push() {
+            local attempt=$1
+            echo "📤 Intento $attempt/5..."
             
+            # Sincronizar con remote
+            git fetch origin main
+            
+            # Verificar si hay cambios remotos
+            LOCAL=$(git rev-parse HEAD)
+            REMOTE=$(git rev-parse origin/main)
+            
+            if [ "$LOCAL" != "$REMOTE" ]; then
+              echo "🔄 Detectados cambios remotos, sincronizando..."
+              
+              # Guardar cambios locales
+              git add data/capitulos.json
+              git stash
+              
+              # Pull con rebase
+              git pull --rebase origin main
+              
+              # Restaurar cambios
+              git stash pop || {
+                echo "⚠️ Conflicto al restaurar cambios"
+                # Si hay conflicto, usar nuestra versión
+                git checkout --ours data/capitulos.json
+                git add data/capitulos.json
+              }
+            fi
+            
+            # Hacer commit si no existe
+            if ! git diff --cached --quiet; then
+              git add data/capitulos.json
+              git commit -m "$COMMIT_MSG"
+            elif ! git diff --quiet data/capitulos.json; then
+              git add data/capitulos.json
+              git commit -m "$COMMIT_MSG"
+            fi
+            
+            # Intentar push
             if git push origin main; then
               echo "✅ Push exitoso"
+              return 0
+            else
+              echo "⚠️ Push falló"
+              return 1
+            fi
+          }
+          
+          # Intentar hasta 5 veces
+          for i in {1..5}; do
+            if attempt_push $i; then
               exit 0
             fi
             
-            echo "⚠️ Push falló, sincronizando de nuevo..."
-            git fetch origin main
-            git rebase origin/main || {
-              git rebase --abort
-              git reset --soft HEAD~1
-              git pull --rebase origin main
-              git add data/capitulos.json
-              git commit -m "🤖 Auto-update: ${TOTAL_ES} caps ES, ${TOTAL_EN} caps EN - $(date +%Y-%m-%d)"
-            }
-            
-            RETRY_COUNT=$((RETRY_COUNT + 1))
-            sleep 10
+            if [ $i -lt 5 ]; then
+              echo "⏳ Esperando 10 segundos antes de reintentar..."
+              sleep 10
+            fi
           done
           
-          echo "❌ No se pudo hacer push después de $MAX_RETRIES intentos"
+          echo "❌ No se pudo hacer push después de 5 intentos"
           exit 1
       
       - name: Limpiar Docker
@@ -168,4 +188,4 @@ jobs:
             echo "📊 Total Inglés: $(jq -r '.stats.totalIngles' data/capitulos.json)"
           else
             echo "❌ El scraping falló"
-          fi
+          figit add .github/workflows/scrape.yml
