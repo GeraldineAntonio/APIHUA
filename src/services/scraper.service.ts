@@ -53,8 +53,32 @@ class ScraperService {
       
       const $ = cheerio.load(html);
       const capitulosEncontrados = new Map<number, Capitulo>();
+      let capitulosBloqueados = 0;
 
-      // Analizar todos los enlaces
+      // Buscar todas las secciones de la página
+      let dentroSeccionPaga = false;
+
+      // Recorrer todos los elementos para detectar secciones
+      $('*').each((_, element) => {
+        const $element = $(element);
+        const texto = $element.text().trim();
+        
+        // Detectar inicio de sección de paga
+        if (texto.includes('Paid Episodes') || texto.includes('paid episodes')) {
+          dentroSeccionPaga = true;
+          console.log('   📍 Detectada sección "Paid Episodes"');
+          return;
+        }
+        
+        // Detectar inicio de sección gratis
+        if (texto.includes('Free Episodes') || texto.includes('free episodes')) {
+          dentroSeccionPaga = false;
+          console.log('   📍 Detectada sección "Free Episodes"');
+          return;
+        }
+      });
+
+      // Segunda pasada: extraer capítulos con contexto
       $('a').each((_, el) => {
         const $el = $(el);
         const texto = $el.text().trim();
@@ -64,28 +88,80 @@ class ScraperService {
         
         if (esCapituloSkydemon) {
           const cap = this.extraerCapitulo(texto, href);
+          
           if (cap && !capitulosEncontrados.has(cap.numero)) {
-            // FILTRAR CAPÍTULOS DE PAGA
-            const esDePaga = /^episode\s+\d+/i.test(texto.trim());
+            // Buscar el contexto del enlace (¿está en sección de paga?)
+            const esDePaga = this.esCapituloDePagaPorContexto($el, $);
             
             if (!esDePaga) {
               capitulosEncontrados.set(cap.numero, cap);
             } else {
-              console.log(`   💰 [PAGA] Ignorando: ${texto.substring(0, 50)}`);
+              capitulosBloqueados++;
+              console.log(`   💰 [PAGA] Ignorando: ${texto.substring(0, 60)}`);
             }
           }
         }
       });
 
-      const capitulos = Array.from(capitulosEncontrados.values()).sort((a, b) => a.numero - b.numero);
+      const capitulos = Array.from(capitulosEncontrados.values())
+        .sort((a, b) => a.numero - b.numero);
       
-      console.log(`✅ Skydemon: ${capitulos.length} capítulos\n`);
+      console.log(`✅ Skydemon: ${capitulos.length} capítulos gratuitos`);
+      console.log(`   💰 Bloqueados: ${capitulosBloqueados} capítulos de paga\n`);
       return capitulos;
 
     } catch (error) {
       console.error('❌ Error en Skydemon:', error);
       throw error;
     }
+  }
+
+  /**
+   * Detectar si un enlace está en contexto de "Paid Episodes"
+   */
+  private esCapituloDePagaPorContexto($enlace: cheerio.Cheerio, $: cheerio.CheerioAPI): boolean {
+    // Buscar hacia arriba en el DOM para encontrar títulos de sección
+    let $parent = $enlace.parent();
+    let niveles = 0;
+    
+    while ($parent.length > 0 && niveles < 10) {
+      const textoParent = $parent.text().toLowerCase();
+      
+      // Si encontramos "paid episodes" en algún padre, es de paga
+      if (textoParent.includes('paid episodes')) {
+        return true;
+      }
+      
+      // Si encontramos "free episodes", es gratuito
+      if (textoParent.includes('free episodes')) {
+        return false;
+      }
+      
+      $parent = $parent.parent();
+      niveles++;
+    }
+    
+    // Buscar hermanos anteriores (elementos antes del enlace)
+    let $prevSibling = $enlace.prev();
+    let checkPrev = 0;
+    
+    while ($prevSibling.length > 0 && checkPrev < 20) {
+      const textoPrev = $prevSibling.text().toLowerCase();
+      
+      if (textoPrev.includes('paid episodes')) {
+        return true;
+      }
+      
+      if (textoPrev.includes('free episodes')) {
+        return false;
+      }
+      
+      $prevSibling = $prevSibling.prev();
+      checkPrev++;
+    }
+    
+    // Por defecto, si no encontramos contexto claro, asumir gratuito
+    return false;
   }
 
   /**
