@@ -5,6 +5,13 @@ on:
     - cron: '0 3 * * 1'  # Cada lunes a las 3 AM UTC
   workflow_dispatch:  # Permite ejecución manual
 
+permissions:
+  contents: write
+
+concurrency:
+  group: scrape-workflow
+  cancel-in-progress: false
+
 jobs:
   scrape:
     runs-on: ubuntu-latest
@@ -14,6 +21,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+          fetch-depth: 0
       
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -23,6 +32,9 @@ jobs:
       - name: Instalar dependencias
         run: npm install
       
+      - name: Crear directorio data
+        run: mkdir -p data
+      
       - name: Iniciar FlareSolverr
         run: |
           docker run -d \
@@ -31,11 +43,21 @@ jobs:
             -e LOG_LEVEL=info \
             ghcr.io/flaresolverr/flaresolverr:latest
           
-          echo "Esperando a FlareSolverr..."
-          sleep 15
+          echo "⏳ Esperando a FlareSolverr..."
+          sleep 20
           
-          curl -f http://localhost:8191/health || exit 1
-          echo "✅ FlareSolverr listo"
+          # Verificar que FlareSolverr está listo
+          for i in {1..10}; do
+            if curl -f http://localhost:8191/health 2>/dev/null; then
+              echo "✅ FlareSolverr listo"
+              exit 0
+            fi
+            echo "⏳ Intento $i/10..."
+            sleep 3
+          done
+          
+          echo "❌ FlareSolverr no respondió"
+          exit 1
       
       - name: Ejecutar scraping
         run: |
@@ -44,13 +66,37 @@ jobs:
           echo "✅ Scraping completado"
         env:
           FLARESOLVERR_URL: http://localhost:8191/v1
+        timeout-minutes: 15
+      
+      - name: Verificar que se creó el archivo
+        run: |
+          if [ ! -f data/capitulos.json ]; then
+            echo "❌ No se generó capitulos.json"
+            exit 1
+          fi
+          
+          # Mostrar estadísticas
+          TOTAL_ES=$(jq -r '.stats.totalEspanol // 0' data/capitulos.json)
+          TOTAL_EN=$(jq -r '.stats.totalIngles // 0' data/capitulos.json)
+          
+          echo "📊 Resultados del scraping:"
+          echo "   - Español: $TOTAL_ES capítulos"
+          echo "   - Inglés: $TOTAL_EN capítulos"
+          
+          if [ $TOTAL_ES -lt 5 ] || [ $TOTAL_EN -lt 5 ]; then
+            echo "⚠️ Advertencia: Muy pocos capítulos encontrados"
+          fi
       
       - name: Verificar cambios
         id: check_changes
         run: |
-          if git diff --quiet data/capitulos.json; then
+          git add data/capitulos.json
+          
+          if git diff --cached --quiet; then
+            echo "ℹ️ No hay cambios en los datos"
             echo "has_changes=false" >> $GITHUB_OUTPUT
           else
+            echo "✅ Se detectaron cambios"
             echo "has_changes=true" >> $GITHUB_OUTPUT
           fi
       
@@ -60,15 +106,66 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           
-          TOTAL_ES=$(jq '.stats.totalEspanol' data/capitulos.json)
-          TOTAL_EN=$(jq '.stats.totalIngles' data/capitulos.json)
+          TOTAL_ES=$(jq -r '.stats.totalEspanol' data/capitulos.json)
+          TOTAL_EN=$(jq -r '.stats.totalIngles' data/capitulos.json)
           
-          git add data/capitulos.json
+          # Sincronizar con remote antes de hacer commit
+          echo "🔄 Sincronizando con GitHub..."
+          git fetch origin main
+          git rebase origin/main || {
+            echo "⚠️ Conflicto detectado, resolviendo..."
+            git rebase --abort
+            git pull --rebase origin main
+          }
+          
+          # Hacer commit
           git commit -m "🤖 Auto-update: ${TOTAL_ES} caps ES, ${TOTAL_EN} caps EN - $(date +%Y-%m-%d)"
-          git push
+          
+          # Intentar push con retry
+          MAX_RETRIES=5
+          RETRY_COUNT=0
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            echo "📤 Intento de push $((RETRY_COUNT + 1))/$MAX_RETRIES..."
+            
+            if git push origin main; then
+              echo "✅ Push exitoso"
+              exit 0
+            fi
+            
+            echo "⚠️ Push falló, sincronizando de nuevo..."
+            git fetch origin main
+            git rebase origin/main || {
+              git rebase --abort
+              git reset --soft HEAD~1
+              git pull --rebase origin main
+              git add data/capitulos.json
+              git commit -m "🤖 Auto-update: ${TOTAL_ES} caps ES, ${TOTAL_EN} caps EN - $(date +%Y-%m-%d)"
+            }
+            
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            sleep 10
+          done
+          
+          echo "❌ No se pudo hacer push después de $MAX_RETRIES intentos"
+          exit 1
       
-      - name: Limpiar
+      - name: Limpiar Docker
         if: always()
         run: |
           docker stop flaresolverr || true
           docker rm flaresolverr || true
+      
+      - name: Resumen
+        if: always()
+        run: |
+          echo "================================"
+          echo "📋 RESUMEN DEL WORKFLOW"
+          echo "================================"
+          if [ -f data/capitulos.json ]; then
+            echo "✅ Scraping exitoso"
+            echo "📊 Total Español: $(jq -r '.stats.totalEspanol' data/capitulos.json)"
+            echo "📊 Total Inglés: $(jq -r '.stats.totalIngles' data/capitulos.json)"
+          else
+            echo "❌ El scraping falló"
+          fi
