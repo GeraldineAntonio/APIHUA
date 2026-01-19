@@ -1,10 +1,10 @@
 {
   "version": "1.0.0",
-  "lastUpdate": "2026-01-16T05:21:03.682Z",
+  "lastUpdate": "2026-01-19T04:16:34.545Z",
   "stats": {
     "totalEspanol": 1540,
-    "totalIngles": 1136,
-    "skydemon": 1136,
+    "totalIngles": 1139,
+    "skydemon": 1139,
     "maehwasup": 0
   },
   "espanol": [
@@ -22149,6 +22149,36 @@
           "url": "https://skydemonorder.com/projects/3801994495-return-of-the-mount-hua-sect/1136-still-what-can-we-do-1"
         }
       ]
+    },
+    {
+      "numero": 1137,
+      "titulo": "Still, What Can We Do? (2)",
+      "fuentes": [
+        {
+          "nombre": "skydemon",
+          "url": "https://skydemonorder.com/projects/3801994495-return-of-the-mount-hua-sect/1137-still-what-can-we-do-2"
+        }
+      ]
+    },
+    {
+      "numero": 1138,
+      "titulo": "Still, What Can We Do? (3)",
+      "fuentes": [
+        {
+          "nombre": "skydemon",
+          "url": "https://skydemonorder.com/projects/3801994495-return-of-the-mount-hua-sect/1138-still-what-can-we-do-3"
+        }
+      ]
+    },
+    {
+      "numero": 1139,
+      "titulo": "Still, What Can We Do? (4)",
+      "fuentes": [
+        {
+          "nombre": "skydemon",
+          "url": "https://skydemonorder.com/projects/3801994495-return-of-the-mount-hua-sect/1139-still-what-can-we-do-4"
+        }
+      ]
     }
   ],
   "capitulosRaw": {
@@ -30102,6 +30132,27 @@
         "numero": 1136,
         "titulo": "Still, What Can We Do? (1)",
         "url": "https://skydemonorder.com/projects/3801994495-return-of-the-mount-hua-sect/1136-still-what-can-we-do-1",
+        "idioma": "en",
+        "fuente": "skydemon"
+      },
+      {
+        "numero": 1137,
+        "titulo": "Still, What Can We Do? (2)",
+        "url": "https://skydemonorder.com/projects/3801994495-return-of-the-mount-hua-sect/1137-still-what-can-we-do-2",
+        "idioma": "en",
+        "fuente": "skydemon"
+      },
+      {
+        "numero": 1138,
+        "titulo": "Still, What Can We Do? (3)",
+        "url": "https://skydemonorder.com/projects/3801994495-return-of-the-mount-hua-sect/1138-still-what-can-we-do-3",
+        "idioma": "en",
+        "fuente": "skydemon"
+      },
+      {
+        "numero": 1139,
+        "titulo": "Still, What Can We Do? (4)",
+        "url": "https://skydemonorder.com/projects/3801994495-return-of-the-mount-hua-sect/1139-still-what-can-we-do-4",
         "idioma": "en",
         "fuente": "skydemon"
       }
