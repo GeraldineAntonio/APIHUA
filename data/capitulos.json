@@ -1,10 +1,10 @@
 {
   "version": "1.0.0",
-  "lastUpdate": "2026-01-19T04:16:34.545Z",
+  "lastUpdate": "2026-01-26T04:20:56.744Z",
   "stats": {
     "totalEspanol": 1540,
-    "totalIngles": 1139,
-    "skydemon": 1139,
+    "totalIngles": 1146,
+    "skydemon": 1146,
     "maehwasup": 0
   },
   "espanol": [
@@ -22179,6 +22179,76 @@
           "url": "https://skydemonorder.com/projects/3801994495-return-of-the-mount-hua-sect/1139-still-what-can-we-do-4"
         }
       ]
+    },
+    {
+      "numero": 1140,
+      "titulo": "Still, What Can We Do? (5)",
+      "fuentes": [
+        {
+          "nombre": "skydemon",
+          "url": "https://skydemonorder.com/projects/3801994495-return-of-the-mount-hua-sect/1140-still-what-can-we-do-5"
+        }
+      ]
+    },
+    {
+      "numero": 1141,
+      "titulo": "Still, What Can We Do? (6)",
+      "fuentes": [
+        {
+          "nombre": "skydemon",
+          "url": "https://skydemonorder.com/projects/3801994495-return-of-the-mount-hua-sect/1141-still-what-can-we-do-6"
+        }
+      ]
+    },
+    {
+      "numero": 1142,
+      "titulo": "Did You Bring It? (1)",
+      "fuentes": [
+        {
+          "nombre": "skydemon",
+          "url": "https://skydemonorder.com/projects/3801994495-return-of-the-mount-hua-sect/1142-did-you-bring-it-1"
+        }
+      ]
+    },
+    {
+      "numero": 1143,
+      "titulo": "Did You Bring It? (2)",
+      "fuentes": [
+        {
+          "nombre": "skydemon",
+          "url": "https://skydemonorder.com/projects/3801994495-return-of-the-mount-hua-sect/1143-did-you-bring-it-2"
+        }
+      ]
+    },
+    {
+      "numero": 1144,
+      "titulo": "Did You Bring It? (3)",
+      "fuentes": [
+        {
+          "nombre": "skydemon",
+          "url": "https://skydemonorder.com/projects/3801994495-return-of-the-mount-hua-sect/1144-did-you-bring-it-3"
+        }
+      ]
+    },
+    {
+      "numero": 1145,
+      "titulo": "Did You Bring It? (4)",
+      "fuentes": [
+        {
+          "nombre": "skydemon",
+          "url": "https://skydemonorder.com/projects/3801994495-return-of-the-mount-hua-sect/1145-did-you-bring-it-4"
+        }
+      ]
+    },
+    {
+      "numero": 1146,
+      "titulo": "I’ve Done Everything I Needed To. (1)",
+      "fuentes": [
+        {
+          "nombre": "skydemon",
+          "url": "https://skydemonorder.com/projects/3801994495-return-of-the-mount-hua-sect/1146-ive-done-everything-i-needed-to-1"
+        }
+      ]
     }
   ],
   "capitulosRaw": {
@@ -30153,6 +30223,55 @@
         "numero": 1139,
         "titulo": "Still, What Can We Do? (4)",
         "url": "https://skydemonorder.com/projects/3801994495-return-of-the-mount-hua-sect/1139-still-what-can-we-do-4",
+        "idioma": "en",
+        "fuente": "skydemon"
+      },
+      {
+        "numero": 1140,
+        "titulo": "Still, What Can We Do? (5)",
+        "url": "https://skydemonorder.com/projects/3801994495-return-of-the-mount-hua-sect/1140-still-what-can-we-do-5",
+        "idioma": "en",
+        "fuente": "skydemon"
+      },
+      {
+        "numero": 1141,
+        "titulo": "Still, What Can We Do? (6)",
+        "url": "https://skydemonorder.com/projects/3801994495-return-of-the-mount-hua-sect/1141-still-what-can-we-do-6",
+        "idioma": "en",
+        "fuente": "skydemon"
+      },
+      {
+        "numero": 1142,
+        "titulo": "Did You Bring It? (1)",
+        "url": "https://skydemonorder.com/projects/3801994495-return-of-the-mount-hua-sect/1142-did-you-bring-it-1",
+        "idioma": "en",
+        "fuente": "skydemon"
+      },
+      {
+        "numero": 1143,
+        "titulo": "Did You Bring It? (2)",
+        "url": "https://skydemonorder.com/projects/3801994495-return-of-the-mount-hua-sect/1143-did-you-bring-it-2",
+        "idioma": "en",
+        "fuente": "skydemon"
+      },
+      {
+        "numero": 1144,
+        "titulo": "Did You Bring It? (3)",
+        "url": "https://skydemonorder.com/projects/3801994495-return-of-the-mount-hua-sect/1144-did-you-bring-it-3",
+        "idioma": "en",
+        "fuente": "skydemon"
+      },
+      {
+        "numero": 1145,
+        "titulo": "Did You Bring It? (4)",
+        "url": "https://skydemonorder.com/projects/3801994495-return-of-the-mount-hua-sect/1145-did-you-bring-it-4",
+        "idioma": "en",
+        "fuente": "skydemon"
+      },
+      {
+        "numero": 1146,
+        "titulo": "I’ve Done Everything I Needed To. (1)",
+        "url": "https://skydemonorder.com/projects/3801994495-return-of-the-mount-hua-sect/1146-ive-done-everything-i-needed-to-1",
         "idioma": "en",
         "fuente": "skydemon"
       }
